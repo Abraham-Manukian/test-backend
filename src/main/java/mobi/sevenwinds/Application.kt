@@ -3,34 +3,36 @@ package mobi.sevenwinds
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
-import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
-import com.papsign.ktor.openapigen.annotations.type.common.ConstraintViolation
-import com.papsign.ktor.openapigen.exceptions.OpenAPIRequiredFieldException
-import com.papsign.ktor.openapigen.route.apiRouting
-import io.ktor.application.*
-import io.ktor.features.*
 import io.ktor.http.*
-import io.ktor.jackson.*
-import io.ktor.locations.*
-import io.ktor.request.*
-import io.ktor.response.*
-import io.ktor.routing.*
-import io.ktor.server.netty.*
+import io.ktor.serialization.jackson.*
+import io.ktor.server.application.*
+import io.ktor.server.plugins.calllogging.*
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.cors.routing.*
+import io.ktor.server.plugins.defaultheaders.*
+import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import mobi.sevenwinds.app.Config
-import mobi.sevenwinds.modules.DatabaseFactory
-import mobi.sevenwinds.modules.initSwagger
-import mobi.sevenwinds.modules.serviceRouting
-import mobi.sevenwinds.modules.swaggerRouting
+import mobi.sevenwinds.app.budget.configureBudgetRoutes
+import mobi.sevenwinds.modules.*
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 
-fun main(args: Array<String>): Unit = EngineMain.main(args)
+fun main(args: Array<String>): Unit = io.ktor.server.netty.EngineMain.main(args)
+
+private suspend fun ApplicationCall.respondError(status: HttpStatusCode, message: String) {
+    this.respond(status, ErrorResponse(error = message))
+}
 
 fun Application.module() {
-    Config.init(environment.config)
+    val config = Config(this)
     DatabaseFactory.init(environment.config)
 
-    initSwagger()
+    configureBudgetRoutes()
+
+    initSwagger() // Настройка Swagger
 
     install(DefaultHeaders)
 
@@ -42,64 +44,38 @@ fun Application.module() {
         }
     }
 
-    install(Locations) {
-    }
-
     install(CallLogging) {
         level = Level.INFO
-        filter { call ->
-            Config.logAllRequests ||
-            call.request.path().startsWith("/")
-                    && (call.response.status()?.value ?: 0) >= 500
-        }
+        filter { call -> config.logAllRequests || call.request.path().startsWith("/") }
     }
 
     install(CORS) {
-        method(HttpMethod.Options)
-        method(HttpMethod.Put)
-        method(HttpMethod.Delete)
-        method(HttpMethod.Patch)
-        header(HttpHeaders.Authorization)
-        header(HttpHeaders.ContentType)
-        header(HttpHeaders.AccessControlAllowOrigin)
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Delete)
+        allowMethod(HttpMethod.Patch)
+        allowHeader(HttpHeaders.Authorization)
+        allowHeader(HttpHeaders.ContentType)
         allowCredentials = true
-        allowNonSimpleContentTypes = true
-        allowSameOrigin = true
-        anyHost()
+        anyHost() // В продакшене замените на разрешённые хосты
     }
 
-    apiRouting {
-        swaggerRouting()
-    }
-
-    routing {
-        serviceRouting()
-    }
+    configureRouting() // Заменяем serviceRouting на configureRouting
 
     install(StatusPages) {
-        val log = LoggerFactory.getLogger("InternalError")
+        exception<IllegalArgumentException> { call, cause ->
+            call.respondError(HttpStatusCode.BadRequest, cause.message ?: "Invalid argument")
+        }
 
-        exception<NotFoundException> { cause ->
-            call.respond(HttpStatusCode.NotFound, cause.message ?: "")
+        exception<com.fasterxml.jackson.databind.exc.MismatchedInputException> { call, cause ->
+            call.respondError(HttpStatusCode.BadRequest, cause.message ?: "Mismatched input")
         }
-        exception<OpenAPIRequiredFieldException> { cause ->
-            call.respond(HttpStatusCode.BadRequest, cause.message ?: "")
-        }
-        exception<MissingKotlinParameterException> { cause ->
-            call.respond(HttpStatusCode.BadRequest, cause.message ?: "")
-        }
-        exception<ConstraintViolation> { cause ->
-            call.respond(HttpStatusCode.BadRequest, cause.message ?: "")
-        }
-        exception<IllegalArgumentException> { cause ->
-            call.respond(HttpStatusCode.BadRequest, cause.message ?: "")
-            cause.printStackTrace()
-            log.error("", cause)
-        }
-        exception<Throwable> { cause ->
-            call.respond(HttpStatusCode.InternalServerError, cause.message ?: "")
-            cause.printStackTrace()
-            log.error("", cause)
+
+        exception<Throwable> { call, cause ->
+            LoggerFactory.getLogger("InternalError").error("Unhandled exception", cause)
+            call.respondError(HttpStatusCode.InternalServerError, "Internal server error")
         }
     }
 }
+
+data class ErrorResponse(val error: String)

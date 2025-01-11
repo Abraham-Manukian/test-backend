@@ -1,13 +1,19 @@
 package mobi.sevenwinds.app
 
-import io.ktor.config.*
+import io.ktor.server.application.*
 
-object Config {
-    val logAllRequests by lazy { config.propertyOrNull("ktor.logAllRequests")?.getString()?.toBoolean() == true }
+class Config(application: Application) {
+    private val config = application.environment.config
 
-    private lateinit var config: ApplicationConfig
+    val logAllRequests: Boolean
+        get() = config.propertyOrNull("ktor.logAllRequests")?.getString()?.toBoolean() ?: false
 
-    fun init(config: ApplicationConfig) {
-        this.config = config
-    }
+    val databaseUrl: String
+        get() = config.propertyOrNull("ktor.database.url")?.getString() ?: "jdbc:postgresql://localhost:5432/mydb"
+
+    val databaseUser: String
+        get() = config.propertyOrNull("ktor.database.user")?.getString() ?: "user"
+
+    val databasePassword: String
+        get() = config.propertyOrNull("ktor.database.password")?.getString() ?: "password"
 }

@@ -2,7 +2,7 @@ package mobi.sevenwinds.modules
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import io.ktor.config.*
+import io.ktor.server.config.ApplicationConfig
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
 
@@ -22,26 +22,27 @@ object DatabaseFactory {
 
         val flyway = Flyway.configure().dataSource(dbUrl, dbUser, dbPassword)
             .locations("classpath:db/migration")
-//            .baselineOnMigrate(true)
-            .outOfOrder(true)
+            .outOfOrder(true) // разрешить миграции вне порядка, если нужно
             .load()
 
-        if (appConfig.property("flyway.clean").getString().toBoolean()) {
-            flyway.clean() // clean existing tables before migration applying
+        // Если включена очистка Flyway, выполнить clean()
+        if (appConfig.propertyOrNull("flyway.clean")?.getString()?.toBoolean() == true) {
+            flyway.clean() // очищает таблицы перед применением миграций
         }
 
-        flyway.migrate()
+        flyway.migrate() // выполняет миграции
     }
 
-    fun hikari(): HikariDataSource {
-        val config = HikariConfig()
-        config.driverClassName = dbDriver
-        config.jdbcUrl = dbUrl
-        config.username = dbUser
-        config.password = dbPassword
-        config.maximumPoolSize = appConfig.property("db.maxPoolSize").getString().toInt()
-        config.isAutoCommit = false
-        config.transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+    private fun hikari(): HikariDataSource {
+        val config = HikariConfig().apply {
+            driverClassName = dbDriver
+            jdbcUrl = dbUrl
+            username = dbUser
+            password = dbPassword
+            maximumPoolSize = appConfig.propertyOrNull("db.maxPoolSize")?.getString()?.toInt() ?: 10
+            isAutoCommit = false
+            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+        }
         config.validate()
         return HikariDataSource(config)
     }

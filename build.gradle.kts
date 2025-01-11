@@ -3,10 +3,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 val ktor_version: String by project
 val kotlin_version: String by project
 val logback_version: String by project
+val retrofit_version: String by project
 
 plugins {
     application
-    kotlin("jvm") version "1.8.0"
+    kotlin("jvm") version "1.9.0"
     id("com.github.johnrengelman.shadow") version "5.0.0"
 }
 
@@ -30,14 +31,21 @@ dependencies {
     implementation("io.ktor:ktor-server-netty:$ktor_version")
     implementation("io.ktor:ktor-server-content-negotiation:$ktor_version")
     implementation("io.ktor:ktor-serialization-jackson:$ktor_version")
-    implementation("io.ktor:ktor-server-auth:$ktor_version") // Вместо ktor-auth
-    implementation("io.ktor:ktor-server-auth-jwt:$ktor_version") // Вместо ktor-auth-jwt
-    implementation("io.ktor:ktor-server-metrics-micrometer:$ktor_version") // Вместо ktor-metrics
+    implementation("io.ktor:ktor-server-call-logging:$ktor_version")
+    implementation("io.ktor:ktor-server-default-headers:$ktor_version")
+    implementation("io.ktor:ktor-server-status-pages:$ktor_version")
+    implementation("io.ktor:ktor-server-cors:$ktor_version")
+    implementation("io.ktor:ktor-server-config-yaml:$ktor_version")
+
+    implementation("io.swagger.core.v3:swagger-annotations:2.2.10")
+    implementation("io.swagger.core.v3:swagger-core:2.2.10")
+    implementation("io.swagger.core.v3:swagger-integration:2.2.10")
+    implementation("io.swagger.core.v3:swagger-jaxrs2:2.2.10")
 
 
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
-    implementation("com.github.papsign:Ktor-OpenAPI-Generator:0.2-beta.20")
+    implementation("io.github.smiley4:ktor-swagger-ui:4.1.2")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.9.8")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.9.8")
     implementation("org.webjars:swagger-ui:3.25.0")
@@ -51,35 +59,30 @@ dependencies {
     implementation("com.zaxxer:HikariCP:2.7.8")
     implementation("org.flywaydb:flyway-core:8.5.13")
 
-    implementation("com.squareup.retrofit2:retrofit:2.3.0")
-    implementation("com.squareup.retrofit2:converter-jackson:2.3.0")
-    implementation("com.squareup.retrofit2:adapter-rxjava2:2.3.0")
+    implementation("com.squareup.retrofit2:retrofit:$retrofit_version")
+    implementation("com.squareup.retrofit2:converter-jackson:$retrofit_version")
+    implementation("com.squareup.retrofit2:adapter-rxjava2:$retrofit_version")
     implementation("com.squareup.okhttp3:logging-interceptor:3.10.0")
 
     testImplementation("io.ktor:ktor-server-test-host:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlin_version")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.9.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
     testImplementation("org.assertj:assertj-core:3.22.0")
     testImplementation("io.rest-assured:rest-assured:4.5.1")
+    implementation("com.typesafe:config:1.4.2")
 
 }
 
-tasks.withType<Jar> {
-    manifest {
-        attributes(
-            mapOf(
-                "Main-Class" to application.mainClass.get()
-            )
-        )
-    }
+kotlin {
+    jvmToolchain(11)
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    kotlinOptions.jvmTarget = "11"
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
-}
-
-tasks.withType<KotlinCompile> {
-    kotlinOptions.freeCompilerArgs += "-Xuse-experimental=kotlin.ExperimentalStdlibApi"
-    kotlinOptions.jvmTarget = JavaVersion.VERSION_1_8.toString()
 }

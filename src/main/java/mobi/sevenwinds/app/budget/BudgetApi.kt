@@ -1,44 +1,47 @@
 package mobi.sevenwinds.app.budget
 
-import com.papsign.ktor.openapigen.annotations.parameters.PathParam
-import com.papsign.ktor.openapigen.annotations.parameters.QueryParam
-import com.papsign.ktor.openapigen.annotations.type.number.integer.max.Max
-import com.papsign.ktor.openapigen.annotations.type.number.integer.min.Min
-import com.papsign.ktor.openapigen.route.info
-import com.papsign.ktor.openapigen.route.path.normal.NormalOpenAPIRoute
-import com.papsign.ktor.openapigen.route.path.normal.get
-import com.papsign.ktor.openapigen.route.path.normal.post
-import com.papsign.ktor.openapigen.route.response.respond
-import com.papsign.ktor.openapigen.route.route
+import io.ktor.server.routing.*
+import io.ktor.server.application.*
+import io.ktor.server.response.*
+import io.ktor.server.request.*
 
-fun NormalOpenAPIRoute.budget() {
-    route("/budget") {
-        route("/add").post<Unit, BudgetRecord, BudgetRecord>(info("Добавить запись")) { param, body ->
-            respond(BudgetService.addRecord(body))
-        }
+fun Application.configureBudgetRoutes() {
+    routing {
+        route("/budget") {
+            post("/add") {
+                val budgetRecord = call.receive<BudgetRecord>()
+                val addedRecord = BudgetService.addRecord(budgetRecord)
+                call.respond(addedRecord)
+            }
 
-        route("/year/{year}/stats") {
-            get<BudgetYearParam, BudgetYearStatsResponse>(info("Получить статистику за год")) { param ->
-                respond(BudgetService.getYearStats(param))
+            get("/year/{year}/stats") {
+                val year = call.parameters["year"]?.toIntOrNull()
+                    ?: return@get call.respondText("Year is missing or invalid", status = io.ktor.http.HttpStatusCode.BadRequest)
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 10
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                val statsResponse = BudgetService.getYearStats(BudgetYearParam(year, limit, offset))
+                call.respond(statsResponse)
             }
         }
     }
 }
 
 data class BudgetRecord(
-    @Min(1900) val year: Int,
-    @Min(1) @Max(12) val month: Int,
-    @Min(1) val amount: Int,
+    val year: Int,
+    val month: Int,
+    val amount: Int,
     val type: BudgetType
 )
 
 data class BudgetYearParam(
-    @PathParam("Год") val year: Int,
-    @QueryParam("Лимит пагинации") val limit: Int,
-    @QueryParam("Смещение пагинации") val offset: Int,
+    val year: Int,
+    val limit: Int = 10,
+    val offset: Int = 0,
 )
 
-class BudgetYearStatsResponse(
+data class BudgetYearStatsResponse(
     val total: Int,
     val totalByType: Map<String, Int>,
     val items: List<BudgetRecord>

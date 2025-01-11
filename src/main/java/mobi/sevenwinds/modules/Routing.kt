@@ -1,23 +1,28 @@
 package mobi.sevenwinds.modules
 
-import com.papsign.ktor.openapigen.openAPIGen
-import com.papsign.ktor.openapigen.route.path.normal.NormalOpenAPIRoute
-import com.papsign.ktor.openapigen.route.tag
-import io.ktor.application.*
-import io.ktor.response.*
-import io.ktor.routing.*
-import mobi.sevenwinds.app.budget.budget
+import io.ktor.server.application.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.server.http.content.*
 
-fun NormalOpenAPIRoute.swaggerRouting() {
-    tag(SwaggerTag.Бюджет) { budget() }
-}
+/**
+ * Конфигурация маршрутов приложения
+ */
+fun Application.configureRouting() {
+    routing {
+        // Перенаправление на Swagger UI
+        get("/") {
+            call.respondRedirect("/swagger-ui/index.html?url=/openapi.json", true)
+        }
 
-fun Routing.serviceRouting() {
-    get("/") {
-        call.respondRedirect("/swagger-ui/index.html?url=/openapi.json", true)
-    }
+        // Маршрут для OpenAPI спецификации
+        get("/openapi.json") {
+            call.respond(generateOpenApiSpec()) // Генерация OpenAPI спецификации
+        }
 
-    get("/openapi.json") {
-        call.respond(application.openAPIGen.api.serialize())
+        // Статические ресурсы для Swagger UI
+        static("/swagger-ui") {
+            resources("swagger-ui")
+        }
     }
 }
