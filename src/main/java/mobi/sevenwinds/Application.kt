@@ -26,13 +26,20 @@ private suspend fun ApplicationCall.respondError(status: HttpStatusCode, message
     this.respond(status, ErrorResponse(error = message))
 }
 
+fun Application.configureSerialization() {
+    install(ContentNegotiation) {
+        jackson()
+    }
+}
+
 fun Application.module() {
     val config = Config(this)
     DatabaseFactory.init(environment.config)
 
     configureBudgetRoutes()
+    configureRouting()
 
-    initSwagger() // Настройка Swagger
+    initSwagger()
 
     install(DefaultHeaders)
 
@@ -57,10 +64,8 @@ fun Application.module() {
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
         allowCredentials = true
-        anyHost() // В продакшене замените на разрешённые хосты
+        anyHost()
     }
-
-    configureRouting() // Заменяем serviceRouting на configureRouting
 
     install(StatusPages) {
         exception<IllegalArgumentException> { call, cause ->

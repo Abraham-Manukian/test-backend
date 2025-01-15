@@ -1,6 +1,5 @@
 package mobi.sevenwinds.app.budget
 
-
 import io.restassured.RestAssured
 import mobi.sevenwinds.common.ServerTest
 import mobi.sevenwinds.common.jsonBody
@@ -8,10 +7,20 @@ import mobi.sevenwinds.common.toResponse
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import io.restassured.parsing.Parser
 
 class BudgetApiKtTest : ServerTest() {
+
+    companion object {
+        @JvmStatic
+        @BeforeAll
+        fun setupRestAssured() {
+            RestAssured.defaultParser = Parser.JSON
+        }
+    }
 
     @BeforeEach
     internal fun setUp() {
@@ -27,15 +36,20 @@ class BudgetApiKtTest : ServerTest() {
         addRecord(BudgetRecord(2020, 5, 40, BudgetType.Приход))
         addRecord(BudgetRecord(2030, 1, 1, BudgetType.Расход))
 
+        // Запрос с параметрами пагинации
         RestAssured.given()
             .queryParam("limit", 3)
             .queryParam("offset", 1)
             .get("/budget/year/2020/stats")
             .toResponse<BudgetYearStatsResponse>().let { response ->
-                println("${response.total} / ${response.items} / ${response.totalByType}")
+                println("Total: ${response.total}")
+                println("Items: ${response.items}")
+                println("TotalByType: ${response.totalByType}")
+
                 assertEquals(5, response.total)
-                assertEquals(5, response.total)
+
                 assertEquals(3, response.items.size)
+
                 assertEquals(105, response.totalByType[BudgetType.Приход.name])
             }
     }
@@ -77,11 +91,24 @@ class BudgetApiKtTest : ServerTest() {
     }
 
     private fun addRecord(record: BudgetRecord) {
-        RestAssured.given()
-            .jsonBody(record)
-            .post("/budget/add")
-            .toResponse<BudgetRecord>().let { response ->
-                assertEquals(record, response)
+        try {
+            val response = RestAssured.given()
+                .contentType("application/json")
+                .body(record)
+                .post("/budget/add")
+
+            response.then().statusCode(200)
+
+            // Получаем тело ответа
+            val responseBody = response.asString()
+            if (responseBody.isNullOrBlank()) {
+                fail("Server returned empty or null response for record: $record")
+            } else {
+                val responseObject = response.toResponse<BudgetRecord>()
+                assertEquals(record, responseObject, "Saved and retrieved records do not match!")
             }
+        } catch (ex: Exception) {
+            fail("Error occurred while adding record: ${ex.message}")
+        }
     }
 }

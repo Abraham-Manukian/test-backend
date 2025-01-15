@@ -5,7 +5,11 @@ import io.ktor.server.config.HoconApplicationConfig
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.restassured.RestAssured
+import io.restassured.parsing.Parser
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import mobi.sevenwinds.app.budget.configureBudgetRoutes
+import mobi.sevenwinds.configureSerialization
+import mobi.sevenwinds.modules.configureRouting
 import org.jetbrains.exposed.sql.Database
 import org.junit.jupiter.api.BeforeAll
 import java.util.concurrent.TimeUnit
@@ -17,14 +21,13 @@ open class ServerTest {
         @JvmStatic
         fun initDatabase() {
             Database.connect(
-                url = "jdbc:postgresql://localhost:45533/dev_mem",
+                url = "jdbc:postgresql://localhost:5432/dev_mem",
                 driver = "org.postgresql.Driver",
                 user = "dev",
                 password = "dev"
             )
         }
 
-        // Изменяем тип на EmbeddedServer
         private lateinit var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
 
         @ExperimentalCoroutinesApi
@@ -34,22 +37,26 @@ open class ServerTest {
             if (!serverStarted) {
                 initDatabase()
 
-                val hoconConfig = HoconApplicationConfig(ConfigFactory.load("test.conf"))
-                val port = hoconConfig.property("ktor.deployment.port").getString().toInt()
+                val config = HoconApplicationConfig(ConfigFactory.load("test.conf"))
+                val port = config.propertyOrNull("ktor.deployment.port")?.getString()?.toIntOrNull() ?: 0
 
-                // Запуск embeddedServer
                 server = embeddedServer(Netty, port = port) {
-                    // Здесь вы можете настроить модули и роуты, если необходимо
+                    configureRouting()
+                    configureBudgetRoutes()
+                    configureSerialization()
                 }.start(wait = false)
 
+                val serverPort = server.environment.config.propertyOrNull("ktor.deployment.port")?.getString()?.toIntOrNull() ?: port
+                    .takeIf { it > 0 } ?: throw IllegalStateException("Не удалось определить порт сервера.")
+
+                RestAssured.port = serverPort
+                println("Тестовый сервер запущен на порту: $serverPort")
                 serverStarted = true
 
-                // Настройка RestAssured
                 RestAssured.baseURI = "http://localhost"
                 RestAssured.port = port
                 RestAssured.enableLoggingOfRequestAndResponseIfValidationFails()
 
-                // Добавляем shutdown hook
                 Runtime.getRuntime().addShutdownHook(Thread {
                     server.stop(0, 0, TimeUnit.SECONDS)
                 })

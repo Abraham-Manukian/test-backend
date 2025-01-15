@@ -22,15 +22,14 @@ object DatabaseFactory {
 
         val flyway = Flyway.configure().dataSource(dbUrl, dbUser, dbPassword)
             .locations("classpath:db/migration")
-            .outOfOrder(true) // разрешить миграции вне порядка, если нужно
+            .outOfOrder(true)
             .load()
 
-        // Если включена очистка Flyway, выполнить clean()
         if (appConfig.propertyOrNull("flyway.clean")?.getString()?.toBoolean() == true) {
-            flyway.clean() // очищает таблицы перед применением миграций
+            flyway.clean()
         }
 
-        flyway.migrate() // выполняет миграции
+        flyway.migrate()
     }
 
     private fun hikari(): HikariDataSource {
