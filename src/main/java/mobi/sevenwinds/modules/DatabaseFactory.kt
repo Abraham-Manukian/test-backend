@@ -25,11 +25,15 @@ object DatabaseFactory {
             .outOfOrder(true)
             .load()
 
+
         if (appConfig.propertyOrNull("flyway.clean")?.getString()?.toBoolean() == true) {
             flyway.clean()
         }
 
+
         flyway.migrate()
+
+
     }
 
     private fun hikari(): HikariDataSource {

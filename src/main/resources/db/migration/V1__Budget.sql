@@ -6,3 +6,5 @@ create table budget
     amount int  not null,
     type   text not null
 );
+
+

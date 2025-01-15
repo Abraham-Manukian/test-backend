@@ -11,6 +11,9 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import io.restassured.parsing.Parser
+import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.select
 
 class BudgetApiKtTest : ServerTest() {
 

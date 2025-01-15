@@ -6,6 +6,7 @@ import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.IntIdTable
 
 object BudgetTable : IntIdTable("budget") {
+
     val year = integer("year")
     val month = integer("month")
     val amount = integer("amount")
