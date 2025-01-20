@@ -30,7 +30,7 @@ object DatabaseFactory {
             flyway.clean()
         }
 
-
+        flyway.repair()
         flyway.migrate()
 
 

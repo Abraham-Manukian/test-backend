@@ -50,7 +50,6 @@ open class ServerTest {
                     .takeIf { it > 0 } ?: throw IllegalStateException("Не удалось определить порт сервера.")
 
                 RestAssured.port = serverPort
-                println("Тестовый сервер запущен на порту: $serverPort")
                 serverStarted = true
 
                 RestAssured.baseURI = "http://localhost"

@@ -5,8 +5,17 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.http.content.*
 import io.ktor.server.request.*
+import mobi.sevenwinds.app.author.AuthorRecord
+import mobi.sevenwinds.app.author.AuthorService
+import mobi.sevenwinds.app.author.AuthorTable
 import mobi.sevenwinds.app.budget.BudgetRecord
 import mobi.sevenwinds.app.budget.BudgetService
+import mobi.sevenwinds.app.budget.BudgetTable
+import org.jetbrains.exposed.dao.EntityID
+import org.jetbrains.exposed.sql.insertAndGetId
+import org.jetbrains.exposed.sql.transactions.transaction
+import org.joda.time.DateTime
+import java.time.LocalDateTime
 
 /**
  * Конфигурация маршрутов приложения
@@ -25,12 +34,10 @@ fun Application.configureRouting() {
             resources("swagger-ui")
         }
 
-        post("/budget/add") {
-            val record = call.receive<BudgetRecord>()
-            println("Received record: $record")
-            val savedRecord = BudgetService.addRecord(record)
-            println("Saved record: $savedRecord")
-            call.respond(savedRecord)
+        post("/author/add") {
+            val authorRequest = call.receive<AuthorRecord>()
+            val addedAuthor = AuthorService.addAuthor(authorRequest.fullName)
+            call.respond(mapOf("id" to addedAuthor.id.value))
         }
     }
 }

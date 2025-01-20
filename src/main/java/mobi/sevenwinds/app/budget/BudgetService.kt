@@ -1,51 +1,71 @@
 package mobi.sevenwinds.app.budget
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.sum
+import mobi.sevenwinds.app.author.AuthorResponse
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import mobi.sevenwinds.app.author.AuthorTable
+import org.jetbrains.exposed.dao.EntityID
 
 object BudgetService {
-    suspend fun addRecord(body: BudgetRecord): BudgetRecord = withContext(Dispatchers.IO) {
-        transaction {
-            val entity = BudgetEntity.new {
-                this.year = body.year
-                this.month = body.month
-                this.amount = body.amount
-                this.type = body.type
-            }
+    fun addBudgetRecord(budgetRecord: BudgetRecord): BudgetRecord {
 
-            return@transaction entity.toResponse()
+        return transaction {
+            val addedRecord = BudgetTable.insertAndGetId {
+                it[year] = budgetRecord.year
+                it[month] = budgetRecord.month
+                it[amount] = budgetRecord.amount
+                it[type] = budgetRecord.type
+                if (budgetRecord.authorId != null) {
+                    it[authorId] = EntityID(budgetRecord.authorId, AuthorTable)
+                }
+            }
+            budgetRecord.copy()
         }
     }
 
-    suspend fun getYearStats(param: BudgetYearParam): BudgetYearStatsResponse = withContext(Dispatchers.IO) {
-        transaction {
-            val total = BudgetTable
-                .select { BudgetTable.year eq param.year }
-                .count()
-
-            val query = BudgetTable
-                .select { BudgetTable.year eq param.year }
-                .orderBy(BudgetTable.month to SortOrder.ASC, BudgetTable.amount to SortOrder.DESC) // Сортировка по месяцам и сумме
-                .limit(param.limit, param.offset)
-
-            val data = BudgetEntity.wrapRows(query).map { it.toResponse() }
-
-            val sumByType = BudgetTable
-                .slice(BudgetTable.type, BudgetTable.amount.sum())
-                .select { BudgetTable.year eq param.year }
-                .groupBy(BudgetTable.type)
-                .associate {
-                    it[BudgetTable.type].name to (it[BudgetTable.amount.sum()] ?: 0)
+    fun getBudgetStats(year: Int, authorNameFilter: String?, limit: Int, offset: Int): BudgetYearStatsResponse {
+        return transaction {
+            val baseQuery = BudgetTable
+                .join(AuthorTable, JoinType.LEFT, BudgetTable.authorId, AuthorTable.id)
+                .select { BudgetTable.year eq year }
+                .let {
+                    if (!authorNameFilter.isNullOrBlank()) {
+                        it.andWhere { AuthorTable.fullName.lowerCase() like "%${authorNameFilter.lowercase()}%" }
+                    } else it
                 }
 
-            return@transaction BudgetYearStatsResponse(
+            val total = baseQuery.count()
+
+            if (total == 0) {
+                println("No records found for year: $year with author filter: $authorNameFilter")
+            }
+
+            val sortedQuery = baseQuery
+                .orderBy(BudgetTable.month to SortOrder.ASC, BudgetTable.amount to SortOrder.DESC)
+
+            val totalByType = sortedQuery
+                .groupBy { it[BudgetTable.type] }
+                .mapValues { (_, group) -> group.sumOf { it[BudgetTable.amount] } }
+
+            val items = sortedQuery
+                .limit(limit, offset)
+                .map {
+                    BudgetRecord(
+                        year = it[BudgetTable.year],
+                        month = it[BudgetTable.month],
+                        amount = it[BudgetTable.amount],
+                        type = it[BudgetTable.type],
+                        author = AuthorResponse(
+                            fullName = it[AuthorTable.fullName],
+                            createdAt = it[AuthorTable.createdAt]
+                        )
+                    )
+                }
+
+            BudgetYearStatsResponse(
                 total = total,
-                totalByType = sumByType,
-                items = data
+                totalByType = totalByType,
+                items = items
             )
         }
     }
